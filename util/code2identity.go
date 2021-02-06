@@ -30,3 +30,15 @@ func IdentityToCode(identity string) (int32, error) {
 		return -1, errors.New("the identity is invalid")
 	}
 }
+
+func IsTeacher(code int64) bool {
+	return code == 2
+}
+
+func IsStudent(code int64) bool {
+	return code == 1
+}
+
+func IsAdmin(code int64) bool {
+	return code == 3
+}

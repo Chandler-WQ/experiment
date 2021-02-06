@@ -15,11 +15,11 @@ var _ DbController = (*dbProxy)(nil)
 type DbController interface {
 
 	//开设实验课，实验成绩相关的接口
-	CreateCourse(course *model.ExperimentCourse, courseType []int64) error                                 //开设实验课
-	MGetCourses(teacherId int64, startTime int64) ([]model.ExperimentCourse, *model.ExperimentInfo, error) //批量查询某个老师的实验课
-	MGetCourseAllInfo(courseId int64) (*model.CourseAllInfo, error)                                        //批量查询某个实验课的所有学生关联的基本信息和老师的基本信息
-	CreateStudentsCourse(studentIds []int64, teacherId, courseId int64) error                              //插入学生与课程的信息
-	UpdateStudentsCourse(studentCourse *model.StudentCourse) error                                         //更新学生某一个课程的信息
+	CreateCourse(course *model.ExperimentCourse, courseType []int64) error        //开设实验课
+	MGetCourses(teacherId int64, startTime int64) ([]*model.CourseInfoRsp, error) //批量查询某个老师的实验课
+	MGetCourseAllInfo(courseId int64) (*model.CourseAllInfo, error)               //批量查询某个实验课的所有学生关联的基本信息和老师的基本信息
+	CreateStudentsCourse(studentIds []int64, teacherId, courseId int64) error     //插入学生与课程的信息
+	UpdateStudentsCourse(studentCourse *model.StudentCourse) error                //更新学生某一个课程的信息
 
 	//实验室管理
 	CreateExperimentInfo(experimentInfo *model.ExperimentInfo) error                     // 创建实验室
@@ -81,6 +81,10 @@ func (dbProxy *dbProxy) CreateCourse(course *model.ExperimentCourse, courseType 
 		}
 	}
 
+	_, startTime, endTime := util.SegmentTime(course.StartTime, course.EndTime)
+	err = tx.Debug().Exec("update experiment_segment_info set remaining_seat = remaining_seat - ? where start_time >= ? and experiment_id = ? and end_time <= ?",
+		course.StudentSum, startTime, course.ExperimentId, endTime).Error
+
 	err = tx.Commit().Error
 	if err != nil {
 		log.Errorf("[CreateCourse]the db error ,the error is %v", err.Error())
@@ -88,27 +92,44 @@ func (dbProxy *dbProxy) CreateCourse(course *model.ExperimentCourse, courseType 
 	return err
 }
 
-func (dbProxy *dbProxy) MGetCourses(teacherId int64, startTime int64) ([]model.ExperimentCourse, *model.ExperimentInfo, error) {
+func (dbProxy *dbProxy) MGetCourses(teacherId int64, startTime int64) ([]*model.CourseInfoRsp, error) {
 	dbProxy.checkDb()
-	var experimentCourses []model.ExperimentCourse
+	var experimentCourses []*model.ExperimentCourse
 	var err error
 	if startTime > 0 {
-		err = dbProxy.DbConn.Model(&model.ExperimentCourse{}).Where("startTime > ? and teacher_id = ?", startTime, teacherId).Find(&experimentCourses).Error
+		err = dbProxy.DbConn.Debug().Model(&model.ExperimentCourse{}).Where("start_time > ? and teacher_id = ?", startTime, teacherId).Find(&experimentCourses).Error
 	} else {
-		err = dbProxy.DbConn.Model(&model.ExperimentCourse{}).Where("teacher_id = ? ", teacherId).Find(&experimentCourses).Error
+		err = dbProxy.DbConn.Debug().Model(&model.ExperimentCourse{}).Where("teacher_id = ? ", teacherId).Find(&experimentCourses).Error
 	}
 	if err != nil {
 		log.Errorf("[MGetCourses]the db error ,the error is %s", err.Error())
-		return nil, nil, err
+		return nil, err
+	}
+	courseInfoRsp := make([]*model.CourseInfoRsp, 0, len(experimentCourses))
+
+	ExperimentIds := make([]int64, len(experimentCourses))
+	for i := 0; i < len(experimentCourses); i++ {
+		ExperimentIds[i] = experimentCourses[i].ExperimentId
+		courseInfoRsp = append(courseInfoRsp, &model.CourseInfoRsp{
+			ExperimentCourse: experimentCourses[i],
+		})
 	}
 
-	var experimentInfo model.ExperimentInfo
-	err = dbProxy.DbConn.Model(&model.ExperimentInfo{}).Where("id = ?", experimentCourses[0].ExperimentId).First(&experimentInfo).Error
+	var experimentInfos []*model.ExperimentInfo
+	err = dbProxy.DbConn.Model(&model.ExperimentInfo{}).Where("id in ?", ExperimentIds).Find(&experimentInfos).Error
 	if err != nil {
 		log.Errorf("[MGetCourses]the db error ,the error is %s", err.Error())
-		return experimentCourses, nil, err
+		return nil, err
 	}
-	return experimentCourses, &experimentInfo, err
+	experimentInfoMap := make(map[int64]*model.ExperimentInfo, len(experimentInfos))
+	for i := 0; i < len(experimentInfos); i++ {
+		experimentInfoMap[int64(experimentInfos[i].ID)] = experimentInfos[i]
+	}
+
+	for i := 0; i < len(courseInfoRsp); i++ {
+		courseInfoRsp[i].ExperimentInfo = experimentInfoMap[courseInfoRsp[i].ExperimentCourse.ExperimentId]
+	}
+	return courseInfoRsp, err
 }
 
 func (dbProxy *dbProxy) MGetCourseAllInfo(courseId int64) (*model.CourseAllInfo, error) {
@@ -142,8 +163,15 @@ func (dbProxy *dbProxy) MGetCourseAllInfo(courseId int64) (*model.CourseAllInfo,
 		log.Errorf("[MGetStudents]the db error ,the error is %s", err.Error())
 		return nil, err
 	}
+	var experimentInfo model.ExperimentInfo
+	err = dbProxy.DbConn.Model(&model.ExperimentInfo{}).Where("id = ?", experimentCourse.ExperimentId).First(&experimentInfo).Error
+	if err != nil {
+		log.Errorf("[MGetStudents]the db error ,the error is %s", err.Error())
+		return nil, err
+	}
 	return &model.CourseAllInfo{
 		ExperimentCourse:   &experimentCourse,
+		ExperimentInfo:     &experimentInfo,
 		CourseTeacherInfo:  &courseTeacherInfo,
 		CourseStudentInfos: courseStudentInfos,
 	}, nil
@@ -174,7 +202,7 @@ func (dbProxy *dbProxy) UpdateStudentsCourse(studentCourse *model.StudentCourse)
 	}
 
 	var err error
-	if studentCourse.Score != -1 && studentCourse.ScoreEncry != "" {
+	if studentCourse.Score != -1 || studentCourse.ScoreEncry != "" {
 		err = tx.Model(&model.StudentCourse{}).Where("experiment_course_id = ? And student_id = ?", studentCourse.ExperimentCourseId, studentCourse.StudentId).
 			Updates(model.StudentCourse{
 				ScoreEncry: studentCourse.ScoreEncry,
@@ -307,30 +335,27 @@ func (dbProxy *dbProxy) UpdateExperimentReserveInfo(experimentReserveId, status 
 	}
 	return err
 }
+
 func (dbProxy *dbProxy) GetExperimentSegmentInfo(experimentId, starTime, endTime int64) (*model.ExperimentSegmentInfo, error) {
 	dbProxy.checkDb()
 	_, start, end := util.SegmentTime(starTime, endTime)
-	var experimentSegmentInfos []model.ExperimentSegmentInfo
-	err := dbProxy.DbConn.Model(&model.ExperimentSegmentInfo{}).
-		Where("start_time >= ? and experiment_id = ? and end_time <= ?", start, experimentId, end).
-		Find(&experimentSegmentInfos).Error
+	var experimentSegmentInfo model.ExperimentSegmentInfo
+	err := dbProxy.DbConn.Debug().Model(&model.ExperimentSegmentInfo{}).
+		Select("experiment_id,max(total_seat) as total_seat ,min(remaining_seat) as remaining_seat").
+		Where("start_time >= ? and end_time <= ? and experiment_id = ? ", start, end, experimentId).
+		Group("experiment_id").
+		Find(&experimentSegmentInfo).Error
 	if err != nil {
 		log.Errorf("[GetExperimentSegmentInfo]the db error ,the error is %s", err.Error())
 		return nil, err
 	}
-	var minRenmingSeat int64
-	minRenmingSeat = experimentSegmentInfos[0].TotalSeat
-	for _, experimentSegmentInfo := range experimentSegmentInfos {
-		if experimentSegmentInfo.RemainingSeat < minRenmingSeat {
-			minRenmingSeat = experimentSegmentInfo.RemainingSeat
-		}
-	}
+
 	return &model.ExperimentSegmentInfo{
-		ExperimentId:  experimentSegmentInfos[0].ExperimentId,
+		ExperimentId:  experimentSegmentInfo.ExperimentId,
 		StartTime:     starTime,
 		EndTime:       endTime,
-		TotalSeat:     experimentSegmentInfos[0].TotalSeat,
-		RemainingSeat: minRenmingSeat,
+		TotalSeat:     experimentSegmentInfo.TotalSeat,
+		RemainingSeat: experimentSegmentInfo.RemainingSeat,
 	}, nil
 }
 

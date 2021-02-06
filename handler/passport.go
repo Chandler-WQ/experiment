@@ -9,7 +9,6 @@ import (
 
 	"github.com/Chandler-WQ/experiment/common"
 	"github.com/Chandler-WQ/experiment/common/model"
-	"github.com/Chandler-WQ/experiment/common/pb"
 	"github.com/Chandler-WQ/experiment/db"
 	"github.com/Chandler-WQ/experiment/service"
 	"github.com/Chandler-WQ/experiment/util"
@@ -78,19 +77,14 @@ func Login(ctx *gin.Context) {
 }
 
 func Logout(ctx *gin.Context) {
-	sessionCtx, exists := ctx.Get(common.SessionInfo)
-	if !exists {
-		ctx.JSON(http.StatusOK, util.SuccessResponse(ctx, common.SUCCESS, nil))
+
+	session, err := service.GetSessionFromCtx(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusOK, util.FailResponse(ctx, common.SerErr.Code, common.SerErr.Message, err.Error()))
 		return
 	}
 
-	session, ok := sessionCtx.(*pb.Session)
-	if !ok {
-		ctx.JSON(http.StatusOK, util.FailResponse(ctx, common.SerErr.Code, common.SerErr.Message, "格式转换错误"))
-		return
-	}
-
-	err := db.Db.DeleteSession(session.SessionId, session.UserId)
+	err = db.Db.DeleteSession(session.SessionId, session.UserId)
 	if err != nil {
 		ctx.JSON(http.StatusOK, util.FailResponse(ctx, common.DBErr.Code, common.DBErr.Message, err.Error()))
 		return
@@ -100,15 +94,9 @@ func Logout(ctx *gin.Context) {
 }
 
 func GetSessionInfo(ctx *gin.Context) {
-	sessionCtx, exists := ctx.Get(common.SessionInfo)
-	if !exists {
-		ctx.JSON(http.StatusOK, util.SuccessResponse(ctx, common.SUCCESS, nil))
-		return
-	}
-
-	session, ok := sessionCtx.(*pb.Session)
-	if !ok {
-		ctx.JSON(http.StatusOK, util.FailResponse(ctx, common.SerErr.Code, common.SerErr.Message, "格式转换错误"))
+	session, err := service.GetSessionFromCtx(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusOK, util.FailResponse(ctx, common.SerErr.Code, common.SerErr.Message, err.Error()))
 		return
 	}
 
