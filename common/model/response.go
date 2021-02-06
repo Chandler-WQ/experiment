@@ -2,6 +2,7 @@ package model
 
 type CourseAllInfo struct {
 	ExperimentCourse   *ExperimentCourse
+	ExperimentInfo     *ExperimentInfo
 	CourseStudentInfos []CourseStudentInfo
 	CourseTeacherInfo  *CourseTeacherInfo
 }
@@ -21,4 +22,9 @@ type CourseStudentInfo struct {
 	Name       string
 	College    string
 	UserNumber int64
+}
+
+type CourseInfoRsp struct {
+	ExperimentCourse *ExperimentCourse
+	ExperimentInfo   *ExperimentInfo
 }

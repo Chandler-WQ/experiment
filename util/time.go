@@ -10,3 +10,7 @@ func SegmentTime(start, end int64) (sum, startTime, endTime int64) {
 	sum = (endTime - startTime) / 1800
 	return sum, startTime, endTime
 }
+
+func IsHalfTime(time int64) bool {
+	return time%(60*30) == 0
+}

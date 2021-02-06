@@ -106,11 +106,11 @@ func TestDbProxy_CreateCourse(t *testing.T) {
 }
 
 func TestDbProxy_MGetCourses(t *testing.T) {
-	ExperimentCourse, ExperimentInfo, err := Db.MGetCourses(1, 1)
+	ExperimentCourse, err := Db.MGetCourses(1, 1)
 	assert.Nil(t, err)
 	assert.NotEqual(t, 0, len(ExperimentCourse))
-	assert.NotNil(t, ExperimentInfo)
-	log.Infof("the ExperimentInfo is %+v", ExperimentInfo)
+	assert.NotNil(t, ExperimentCourse)
+	log.Infof("the ExperimentInfo is %+v", ExperimentCourse)
 }
 
 func TestDbProxy_MGetCourseAllInfo(t *testing.T) {

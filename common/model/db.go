@@ -26,6 +26,7 @@ type ExperimentCourse struct {
 	Resource     int32
 	Desc         string
 	TeacherId    int64
+	StudentSum   int32
 }
 
 func (ExperimentCourse) TableName() string {

@@ -52,5 +52,9 @@ func GetRouter() []*RouterConfig {
 		UrlConfig("/api/login", "Login", POST, handler.Login),
 		UrlSessionConfig("/api/logout", "Logout", GET, handler.Logout),
 		UrlSessionConfig("/api/get/session/info", "GetSessionInfo", GET, handler.GetSessionInfo),
+		UrlSessionConfig("/api/teach/offer", "CreatCourse", POST, handler.CreatCourse),
+		UrlSessionConfig("/api/teach/:start_time", "MGetCourseInfo", GET, handler.MGetCourseInfo),
+		UrlSessionConfig("/api/class/:course_id", "GetCourseAllInfo", GET, handler.GetCourseAllInfo),
+		UrlSessionConfig("/api/course/update", "UpdateStudentCourse", POST, handler.UpdateStudentCourse),
 	}
 }
