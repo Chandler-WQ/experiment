@@ -7,19 +7,19 @@ import (
 )
 
 //通用返回值格式方法
-func NewSuccessResponse(ctx *gin.Context, data interface{}, tips string) *common.Response {
-	ctx.Set("res_code", common.Success.StatusCode)
-	return &common.Response{StatusCode: common.Success.StatusCode, Message: tips, Data: data}
+func SuccessResponse(ctx *gin.Context, tips string, data interface{}) *common.Response {
+	ctx.Set("res_code", common.Success.Code)
+	return &common.Response{Code: common.Success.Code, Message: tips, Data: data}
 }
 
 //通用返回值格式方法
-func NewFailResponse(ctx *gin.Context, code int32, tips string,data interface{}) *common.Response {
+func FailResponse(ctx *gin.Context, code int32, tips string, data interface{}) *common.Response {
 	ctx.Set("res_code", code)
-	return &common.Response{StatusCode: code, Message: tips, Data: data}
+	return &common.Response{Code: code, Message: tips, Data: data}
 }
 
 //通用返回值格式方法
-func NewErrResponse(ctx *gin.Context, cloudError *common.Response) *common.Response {
-	ctx.Set("res_code", cloudError.StatusCode)
-	return &common.Response{StatusCode: cloudError.StatusCode, Message: cloudError.Message, Data: nil}
+func ErrResponse(ctx *gin.Context, cloudError *common.Response) *common.Response {
+	ctx.Set("res_code", cloudError.Code)
+	return &common.Response{Code: cloudError.Code, Message: cloudError.Message, Data: nil}
 }

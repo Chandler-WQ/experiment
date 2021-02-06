@@ -2,8 +2,8 @@ package db
 
 import (
 	"testing"
+	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 
 	log "github.com/sirupsen/logrus"
@@ -92,7 +92,7 @@ func TestFirst(t *testing.T) {
 }
 
 func TestDbProxy_CreateCourse(t *testing.T) {
-	err := Db.CreateCourse(&gin.Context{}, &model.ExperimentCourse{
+	err := Db.CreateCourse(&model.ExperimentCourse{
 		Name:         "物理实验",
 		ExperimentId: 1,
 		StartTime:    1612447200,
@@ -106,7 +106,7 @@ func TestDbProxy_CreateCourse(t *testing.T) {
 }
 
 func TestDbProxy_MGetCourses(t *testing.T) {
-	ExperimentCourse, ExperimentInfo, err := Db.MGetCourses(&gin.Context{}, 1)
+	ExperimentCourse, ExperimentInfo, err := Db.MGetCourses(1, 1)
 	assert.Nil(t, err)
 	assert.NotEqual(t, 0, len(ExperimentCourse))
 	assert.NotNil(t, ExperimentInfo)
@@ -114,7 +114,7 @@ func TestDbProxy_MGetCourses(t *testing.T) {
 }
 
 func TestDbProxy_MGetCourseAllInfo(t *testing.T) {
-	courseAllInfo, err := Db.MGetCourseAllInfo(&gin.Context{}, 1)
+	courseAllInfo, err := Db.MGetCourseAllInfo(1)
 	assert.Nil(t, err)
 	assert.NotNil(t, courseAllInfo)
 	log.Infof("the ExperimentInfo is %+v", courseAllInfo.ExperimentCourse)
@@ -123,12 +123,12 @@ func TestDbProxy_MGetCourseAllInfo(t *testing.T) {
 }
 
 func TestDbProxy_CreateStudentsCourse(t *testing.T) {
-	err := Db.CreateStudentsCourse(&gin.Context{}, []int64{3}, 2, 1)
+	err := Db.CreateStudentsCourse([]int64{3}, 2, 1)
 	assert.Nil(t, err)
 }
 
 func TestDbProxy_UpdateStudentsCourse(t *testing.T) {
-	err := Db.UpdateStudentsCourse(&gin.Context{}, &model.StudentCourse{
+	err := Db.UpdateStudentsCourse(&model.StudentCourse{
 		ExperimentCourseId: 1,
 		StudentId:          1,
 		Score:              100,
@@ -136,4 +136,72 @@ func TestDbProxy_UpdateStudentsCourse(t *testing.T) {
 		Status:             1,
 	})
 	assert.Nil(t, err)
+}
+
+func TestDbProxy_CreateExperimentInfo(t *testing.T) {
+	err := Db.CreateExperimentInfo(&model.ExperimentInfo{
+		Name:      "物理实验室",
+		Region:    "物理楼118",
+		TotalSeat: 210,
+	})
+	assert.Nil(t, err)
+}
+
+func TestDbProxy_UpdateExperimentInfo(t *testing.T) {
+	err := Db.UpdateExperimentInfo(2, &model.ExperimentInfo{
+		TotalSeat: 100,
+	})
+	assert.Nil(t, err)
+}
+
+func TestDbProxy_GetExperimentInfo(t *testing.T) {
+	experimentInfo, err := Db.GetExperimentInfo(2)
+	assert.Nil(t, err)
+	log.Infof("the experimentInfo is %+v", experimentInfo)
+}
+
+func TestDbProxy_MgetExperimentInfo(t *testing.T) {
+	experimentInfos, err := Db.MgetExperimentInfo(1, 2)
+	assert.Nil(t, err)
+	log.Infof("the experimentInfo is %+v,the len is %v", experimentInfos[0], len(experimentInfos))
+}
+
+func TestDbProxy_CreateExperimentReserveInfo(t *testing.T) {
+	timeNow := time.Now().Unix()
+
+	err := Db.CreateExperimentReserveInfo(&model.ExperimentReserveInfo{
+		UserId:       1,
+		ExperimentId: 2,
+		StartTime:    timeNow,
+		EndTime:      timeNow + 30*61*3,
+		Status:       1,
+	})
+	assert.Nil(t, err)
+}
+
+func TestDbProxy_DeleteExperimentReserveInfo(t *testing.T) {
+	err := Db.DeleteExperimentReserveInfo(2)
+	assert.Nil(t, err)
+}
+
+func TestDbProxy_MGetExperimentReserveInfo(t *testing.T) {
+	timeNow := time.Now().Unix()
+	experimentReserveInfos, userInfo, err := Db.MGetExperimentReserveInfo(1, timeNow-30*61, timeNow+30*61*20)
+	assert.Nil(t, err)
+	log.Infof("userInfo is %v", userInfo)
+	log.Infof("experimentReserveInfos is %v", experimentReserveInfos[0])
+}
+
+func TestDbProxy_GetExperimentSegmentInfo(t *testing.T) {
+	timeNow := time.Now().Unix()
+	experimentSegmentInfo, err := Db.GetExperimentSegmentInfo(1, timeNow-30*61, timeNow+30*61*20)
+	assert.Nil(t, err)
+	log.Infof("experimentSegmentInfo is %v", experimentSegmentInfo)
+}
+
+func TestDbProxy_MGetExperimentSegmentInfo(t *testing.T) {
+	timeNow := time.Now().Unix()
+	experimentSegmentInfo, err := Db.MGetExperimentSegmentInfo(timeNow-30*61, timeNow+30*61*20)
+	assert.Nil(t, err)
+	log.Infof("experimentSegmentInfo is %v", experimentSegmentInfo[1])
 }

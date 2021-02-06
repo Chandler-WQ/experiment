@@ -3,39 +3,53 @@ package db
 import (
 	"errors"
 
-	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
+	"gorm.io/gorm"
 
 	"github.com/Chandler-WQ/experiment/common/model"
+	"github.com/Chandler-WQ/experiment/util"
 )
+
+var _ DbController = (*dbProxy)(nil)
 
 type DbController interface {
 
 	//开设实验课，实验成绩相关的接口
-	CreateCourse(ctx *gin.Context, course *model.ExperimentCourse, courseType []int64) error                                 //开设实验课
-	MGetCourses(ctx *gin.Context, teacherId int64, startTime int64) ([]model.ExperimentCourse, *model.ExperimentInfo, error) //批量查询某个老师的实验课
-	MGetCourseAllInfo(ctx *gin.Context, courseId int64) (*model.CourseAllInfo, error)                                        //批量查询某个实验课的所有学生关联的基本信息和老师的基本信息
-	CreateStudentsCourse(ctx *gin.Context, studentIds []int64, teacherId, courseId int64) error                              //插入学生与课程的信息
-	UpdateStudentsCourse(ctx *gin.Context, studentCourse *model.StudentCourse) error                                         //更新学生某一个课程的信息
+	CreateCourse(course *model.ExperimentCourse, courseType []int64) error                                 //开设实验课
+	MGetCourses(teacherId int64, startTime int64) ([]model.ExperimentCourse, *model.ExperimentInfo, error) //批量查询某个老师的实验课
+	MGetCourseAllInfo(courseId int64) (*model.CourseAllInfo, error)                                        //批量查询某个实验课的所有学生关联的基本信息和老师的基本信息
+	CreateStudentsCourse(studentIds []int64, teacherId, courseId int64) error                              //插入学生与课程的信息
+	UpdateStudentsCourse(studentCourse *model.StudentCourse) error                                         //更新学生某一个课程的信息
 
 	//实验室管理
-	CreateExperimentInfo(ctx *gin.Context, experimentInfo *model.ExperimentInfo) error
-	UpdateExperimentInfo(ctx *gin.Context, experimentInfo *model.ExperimentInfo) error
-	GetExperimentInfo(ctx *gin.Context, experimentId int64) (*model.ExperimentInfo, error)
-	MgetExperimentInfo(ctx *gin.Context) ([]model.ExperimentInfo, error)
+	CreateExperimentInfo(experimentInfo *model.ExperimentInfo) error                     // 创建实验室
+	UpdateExperimentInfo(experimentId int64, experimentInfo *model.ExperimentInfo) error //更新实验室信息
+	GetExperimentInfo(experimentId int64) (*model.ExperimentInfo, error)                 //查询实验室信息
+	MgetExperimentInfo(offest, limit int) ([]model.ExperimentInfo, error)                //查询实验室信息
 
 	//实验室学生预约占用管理
-	MGetExperimentSegmentInfo(ctx *gin.Context, starTime int64, endTime int64) ([]model.ExperimentSegmentInfo, error)
-	GetExperimentSegmentInfo(ctx *gin.Context, experimentId int64, starTime int64, endTime int64) ([]model.ExperimentSegmentInfo, error)
-	CreateExperimentReserveInfo(ctx *gin.Context, experimentReserveInfo *model.ExperimentReserveInfo) error
-	DeleteExperimentReserveInfo(ctx *gin.Context, experimentReserveInfo *model.ExperimentReserveInfo) error
-	MGetExperimentReserveInfo(ctx *gin.Context, userId int64) ([]model.ExperimentReserveInfo, *model.UserInfo, error)
+	GetOrCreateExperimentSegmentInfo(experimentSegmentInfos *model.ExperimentSegmentInfo) error
+	CreateExperimentReserveInfo(experimentReserveInfo *model.ExperimentReserveInfo) error //预约实验室，并且同步更新segment和预约表
+	UpdateExperimentReserveInfo(experimentReserveId, status int64) error
+	GetExperimentSegmentInfo(experimentId int64, starTime int64, endTime int64) (*model.ExperimentSegmentInfo, error)        //获得某个实验室某个时间段的信息
+	MGetExperimentSegmentInfo(starTime, endTime int64) ([]model.ExperimentSegmentInfo, error)                                //批量获取实验室某个时间段的信息
+	MGetExperimentReserveInfo(userId int64, starTime, endTime int64) ([]model.ExperimentReserveInfo, *model.UserInfo, error) //获取某个人某个时间端的预约信息
+	DeleteExperimentReserveInfo(experimentReserveId int64) error                                                             //删除预约，并且segment表进行相应的减一
 
 	//设备管理
-	CreateEquipmentInfo(ctx *gin.Context, equipmentInfo *model.EquipmentInfo) error
-	UpdateEquipmentInfo(ctx *gin.Context, equipmentInfo *model.EquipmentInfo) error
-	GetEquipmentInfo(ctx *gin.Context, experimentId int64) (*model.EquipmentInfo, error)
-	MgetEquipmentInfo(ctx *gin.Context) ([]model.EquipmentInfo, error)
+	CreateEquipmentInfo(equipmentInfo *model.EquipmentInfo) error                    // 创建设备
+	UpdateEquipmentInfo(equipmentId int64, equipmentInfo *model.EquipmentInfo) error //更新实验室信息
+	GetEquipmentInfo(equipmentId int64) (*model.EquipmentInfo, error)                //查询设备
+	MgetEquipmentInfo(offest, limit int) ([]model.EquipmentInfo, error)              //批量查询设备
+
+	//session管理
+	CreateSession(session *model.Session) error         //创建session信息
+	UpdateSession(session *model.Session) error         //更新session信息，失效时间
+	DeleteSession(sessionId, userId int64) error        //删除session信息
+	GetSession(sessionId int64) (*model.Session, error) //查询session信息
+	MGetSession(userId int64) ([]model.Session, error)  //查询用户的所有session
+
+	CreateUserInfo(userInfo *model.UserInfo) error
 }
 
 func (dbProxy *dbProxy) checkDb() {
@@ -45,7 +59,7 @@ func (dbProxy *dbProxy) checkDb() {
 	}
 }
 
-func (dbProxy *dbProxy) CreateCourse(ctx *gin.Context, course *model.ExperimentCourse, courseType []int64) error {
+func (dbProxy *dbProxy) CreateCourse(course *model.ExperimentCourse, courseType []int64) error {
 	dbProxy.checkDb()
 	tx := dbProxy.DbConn.Begin()
 	err := tx.Create(&course).Error
@@ -74,7 +88,7 @@ func (dbProxy *dbProxy) CreateCourse(ctx *gin.Context, course *model.ExperimentC
 	return err
 }
 
-func (dbProxy *dbProxy) MGetCourses(ctx *gin.Context, teacherId int64, startTime int64) ([]model.ExperimentCourse, *model.ExperimentInfo, error) {
+func (dbProxy *dbProxy) MGetCourses(teacherId int64, startTime int64) ([]model.ExperimentCourse, *model.ExperimentInfo, error) {
 	dbProxy.checkDb()
 	var experimentCourses []model.ExperimentCourse
 	var err error
@@ -97,7 +111,7 @@ func (dbProxy *dbProxy) MGetCourses(ctx *gin.Context, teacherId int64, startTime
 	return experimentCourses, &experimentInfo, err
 }
 
-func (dbProxy *dbProxy) MGetCourseAllInfo(ctx *gin.Context, courseId int64) (*model.CourseAllInfo, error) {
+func (dbProxy *dbProxy) MGetCourseAllInfo(courseId int64) (*model.CourseAllInfo, error) {
 	dbProxy.checkDb()
 	var experimentCourse model.ExperimentCourse
 	err := dbProxy.DbConn.Model(&model.ExperimentCourse{}).Where("id = ?", courseId).First(&experimentCourse).Error
@@ -135,7 +149,7 @@ func (dbProxy *dbProxy) MGetCourseAllInfo(ctx *gin.Context, courseId int64) (*mo
 	}, nil
 }
 
-func (dbProxy *dbProxy) CreateStudentsCourse(ctx *gin.Context, studentIds []int64, teacherId, courseId int64) error {
+func (dbProxy *dbProxy) CreateStudentsCourse(studentIds []int64, teacherId, courseId int64) error {
 	dbProxy.checkDb()
 	length := len(studentIds)
 	studentCourses := make([]model.StudentCourse, length)
@@ -152,7 +166,7 @@ func (dbProxy *dbProxy) CreateStudentsCourse(ctx *gin.Context, studentIds []int6
 	return err
 }
 
-func (dbProxy *dbProxy) UpdateStudentsCourse(ctx *gin.Context, studentCourse *model.StudentCourse) error {
+func (dbProxy *dbProxy) UpdateStudentsCourse(studentCourse *model.StudentCourse) error {
 	dbProxy.checkDb()
 	tx := dbProxy.DbConn.Begin()
 	if studentCourse.ExperimentCourseId <= 0 || studentCourse.StudentId <= 0 {
@@ -187,4 +201,347 @@ func (dbProxy *dbProxy) UpdateStudentsCourse(ctx *gin.Context, studentCourse *mo
 		log.Errorf("[CreateStudentsCourse]the db error ,the error is %s", err.Error())
 	}
 	return err
+}
+
+func (dbProxy *dbProxy) CreateExperimentInfo(experimentInfo *model.ExperimentInfo) error {
+	dbProxy.checkDb()
+	err := dbProxy.DbConn.Model(&model.ExperimentInfo{}).Create(experimentInfo).Error
+	if err != nil {
+		log.Errorf("[CreateExperimentInfo]the db error ,the error is %s", err.Error())
+	}
+	return err
+}
+
+func (dbProxy *dbProxy) UpdateExperimentInfo(experimentId int64, experimentInfo *model.ExperimentInfo) error {
+	dbProxy.checkDb()
+	err := dbProxy.DbConn.Model(&model.ExperimentInfo{}).Where("id = ?", experimentId).Updates(experimentInfo).Error
+	if err != nil {
+		log.Errorf("[UpdateExperimentInfo]the db error ,the error is %s", err.Error())
+	}
+	return err
+}
+
+func (dbProxy *dbProxy) GetExperimentInfo(experimentId int64) (*model.ExperimentInfo, error) {
+	dbProxy.checkDb()
+	var experimentInfo model.ExperimentInfo
+	err := dbProxy.DbConn.Model(&model.ExperimentInfo{}).Where("id = ?", experimentId).First(&experimentInfo).Error
+	if err != nil {
+		log.Errorf("[GetExperimentInfo]the db error ,the error is %s", err.Error())
+	}
+	return &experimentInfo, err
+}
+
+func (dbProxy *dbProxy) MgetExperimentInfo(offest, limit int) ([]model.ExperimentInfo, error) {
+	dbProxy.checkDb()
+	var experimentInfos []model.ExperimentInfo
+	var err error
+	if offest == -1 && limit == -1 {
+		err = dbProxy.DbConn.Model(&model.ExperimentInfo{}).Find(&experimentInfos).Error
+	} else {
+		err = dbProxy.DbConn.Model(&model.ExperimentInfo{}).Offset(offest).Limit(limit).Find(&experimentInfos).Error
+	}
+
+	if err != nil {
+		log.Errorf("[GetExperimentInfo]the db error ,the error is %s", err.Error())
+	}
+	return experimentInfos, err
+}
+
+func (dbProxy *dbProxy) GetOrCreateExperimentSegmentInfo(experimentSegmentInfo *model.ExperimentSegmentInfo) error {
+	dbProxy.checkDb()
+	err := dbProxy.DbConn.Model(&model.ExperimentSegmentInfo{}).
+		Where("start_time = ? and experiment_id = ?", experimentSegmentInfo.StartTime, experimentSegmentInfo.ExperimentId).
+		FirstOrCreate(experimentSegmentInfo).Error
+	if err != nil {
+		log.Errorf("[CreateExperimentSegmentInfo]the db error ,the error is %s", err.Error())
+	}
+	return err
+}
+
+func (dbProxy *dbProxy) CreateExperimentReserveInfo(experimentReserveInfo *model.ExperimentReserveInfo) error {
+	dbProxy.checkDb()
+	tx := dbProxy.DbConn.Begin()
+	err := tx.Model(&model.ExperimentReserveInfo{}).Create(&experimentReserveInfo).Error
+	if err != nil {
+		log.Errorf("[CreateExperimentReserveInfo]the db error ,the error is %s", err.Error())
+		tx.Rollback()
+		return err
+	}
+	sum, startTime, endTime := util.SegmentTime(experimentReserveInfo.StartTime, experimentReserveInfo.EndTime)
+	for i := 0; i < int(sum); i++ {
+		var experimentSegmentInfo model.ExperimentSegmentInfo
+		start := startTime + int64(i*1800)
+		err := dbProxy.DbConn.Model(&model.ExperimentSegmentInfo{}).
+			Where("start_time = ? and experiment_id = ?", start, experimentReserveInfo.ExperimentId).
+			First(&experimentSegmentInfo).Error
+		if err != nil {
+			log.Errorf("[CreateExperimentReserveInfo]the db error ,the error is %s", err.Error())
+			tx.Rollback()
+			return err
+		}
+		if experimentSegmentInfo.RemainingSeat <= 0 {
+			return errors.New("the RemainingSeat is 0")
+		}
+	}
+
+	err = tx.Exec("update  experiment_segment_info set remaining_seat = remaining_seat - ? where start_time >= ? and experiment_id = ? and end_time <= ?",
+		1, startTime, experimentReserveInfo.ExperimentId, endTime).Error
+	if err != nil {
+		log.Errorf("[CreateExperimentReserveInfo]the db error ,the error is %s", err.Error())
+		tx.Rollback()
+		return err
+	}
+
+	err = tx.Commit().Error
+	if err != nil {
+		log.Errorf("[CreateExperimentReserveInfo]the db error ,the error is %s", err.Error())
+	}
+	return err
+}
+
+func (dbProxy *dbProxy) UpdateExperimentReserveInfo(experimentReserveId, status int64) error {
+	dbProxy.checkDb()
+	err := dbProxy.DbConn.Model(&model.ExperimentReserveInfo{}).Where("id = ? ", experimentReserveId).Update("status = ?", status).Error
+	if err != nil {
+		log.Errorf("[UpdateExperimentReserveInfo]the db error ,the error is %s", err.Error())
+	}
+	return err
+}
+func (dbProxy *dbProxy) GetExperimentSegmentInfo(experimentId, starTime, endTime int64) (*model.ExperimentSegmentInfo, error) {
+	dbProxy.checkDb()
+	_, start, end := util.SegmentTime(starTime, endTime)
+	var experimentSegmentInfos []model.ExperimentSegmentInfo
+	err := dbProxy.DbConn.Model(&model.ExperimentSegmentInfo{}).
+		Where("start_time >= ? and experiment_id = ? and end_time <= ?", start, experimentId, end).
+		Find(&experimentSegmentInfos).Error
+	if err != nil {
+		log.Errorf("[GetExperimentSegmentInfo]the db error ,the error is %s", err.Error())
+		return nil, err
+	}
+	var minRenmingSeat int64
+	minRenmingSeat = experimentSegmentInfos[0].TotalSeat
+	for _, experimentSegmentInfo := range experimentSegmentInfos {
+		if experimentSegmentInfo.RemainingSeat < minRenmingSeat {
+			minRenmingSeat = experimentSegmentInfo.RemainingSeat
+		}
+	}
+	return &model.ExperimentSegmentInfo{
+		ExperimentId:  experimentSegmentInfos[0].ExperimentId,
+		StartTime:     starTime,
+		EndTime:       endTime,
+		TotalSeat:     experimentSegmentInfos[0].TotalSeat,
+		RemainingSeat: minRenmingSeat,
+	}, nil
+}
+
+func (dbProxy *dbProxy) MGetExperimentSegmentInfo(starTime, endTime int64) ([]model.ExperimentSegmentInfo, error) {
+	dbProxy.checkDb()
+	var experimentSegmentInfos []model.ExperimentSegmentInfo
+	_, start, end := util.SegmentTime(starTime, endTime)
+	err := dbProxy.DbConn.Debug().Model(&model.ExperimentSegmentInfo{}).
+		Select("experiment_id,max(total_seat) as total_seat ,min(remaining_seat) as remaining_seat").
+		Where("start_time >= ? and end_time <= ?", start, end).
+		Group("experiment_id").
+		Find(&experimentSegmentInfos).Error
+	if err != nil {
+		log.Errorf("[MGetExperimentSegmentInfo]the db error ,the error is %s", err.Error())
+	}
+	for i := 0; i < len(experimentSegmentInfos); i++ {
+		experimentSegmentInfos[i].StartTime = starTime
+		experimentSegmentInfos[i].EndTime = endTime
+	}
+	return experimentSegmentInfos, err
+}
+
+func (dbProxy *dbProxy) MGetExperimentReserveInfo(userId int64, starTime int64, endTime int64) ([]model.ExperimentReserveInfo, *model.UserInfo, error) {
+	dbProxy.checkDb()
+	var experimentReserveInfos []model.ExperimentReserveInfo
+	err := dbProxy.DbConn.Model(&model.ExperimentReserveInfo{}).
+		Debug().Where("user_id = ? and start_time >= ? and end_time <= ?", userId, starTime, endTime).
+		Find(&experimentReserveInfos).Error
+	if err != nil {
+		log.Errorf("[MGetExperimentReserveInfo]the db error ,the error is %s", err.Error())
+		return nil, nil, err
+	}
+
+	var userInfo model.UserInfo
+	err = dbProxy.DbConn.Model(&model.UserInfo{}).Where("id = ?", userId).First(&userInfo).Error
+	if err != nil {
+		log.Errorf("[MGetExperimentReserveInfo]the db error ,the error is %s", err.Error())
+	}
+	return experimentReserveInfos, &userInfo, err
+}
+
+func (dbProxy *dbProxy) DeleteExperimentReserveInfo(experimentReserveId int64) error {
+	dbProxy.checkDb()
+	var experimentReserveInfoTem model.ExperimentReserveInfo
+	err := dbProxy.DbConn.Model(&model.ExperimentReserveInfo{}).Where("id = ?", experimentReserveId).First(&experimentReserveInfoTem).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil
+	}
+	if err != nil {
+		log.Errorf("[DeleteExperimentReserveInfo]the db error ,the error is %s", err.Error())
+		return err
+	}
+
+	tx := dbProxy.DbConn.Begin()
+	_, startTime, endTime := util.SegmentTime(experimentReserveInfoTem.StartTime, experimentReserveInfoTem.EndTime)
+	err = tx.Model(&model.ExperimentReserveInfo{}).Where("id = ?", experimentReserveId).Delete(&model.ExperimentReserveInfo{}).Error
+	if err != nil {
+		log.Errorf("[DeleteExperimentReserveInfo]the db error ,the error is %s", err.Error())
+		tx.Rollback()
+		return err
+	}
+
+	err = tx.Exec("update  experiment_segment_info set remaining_seat = remaining_seat + ? where start_time >= ? and experiment_id = ? and end_time <= ?",
+		1, startTime, experimentReserveInfoTem.ExperimentId, endTime).Error
+	if err != nil {
+		log.Errorf("[CreateExperimentReserveInfo]the db error ,the error is %s", err.Error())
+		tx.Rollback()
+		return err
+	}
+
+	err = tx.Commit().Error
+	if err != nil {
+		log.Errorf("[CreateExperimentReserveInfo]the db error ,the error is %s", err.Error())
+	}
+	return err
+}
+
+func (dbProxy *dbProxy) CreateEquipmentInfo(equipmentInfo *model.EquipmentInfo) error {
+	dbProxy.checkDb()
+	err := dbProxy.DbConn.Model(&model.EquipmentInfo{}).Create(equipmentInfo).Error
+	if err != nil {
+		log.Errorf("[CreateEquipmentInfo]the db error ,the error is %s", err.Error())
+	}
+	return err
+
+}
+
+func (dbProxy *dbProxy) UpdateEquipmentInfo(equipmentId int64, equipmentInfo *model.EquipmentInfo) error {
+	dbProxy.checkDb()
+	err := dbProxy.DbConn.Model(&model.EquipmentInfo{}).Where("id = ?", equipmentId).Updates(equipmentInfo).Error
+	if err != nil {
+		log.Errorf("[UpdateEquipmentInfo]the db error ,the error is %s", err.Error())
+	}
+	return err
+}
+
+func (dbProxy *dbProxy) GetEquipmentInfo(equipmentId int64) (*model.EquipmentInfo, error) {
+	dbProxy.checkDb()
+	var equipmentInfo model.EquipmentInfo
+	err := dbProxy.DbConn.Model(&model.EquipmentInfo{}).Where("id = ?", equipmentId).First(&equipmentInfo).Error
+	if err != nil {
+		log.Errorf("[GetEquipmentInfo]the db error ,the error is %s", err.Error())
+	}
+	return &equipmentInfo, err
+}
+
+func (dbProxy *dbProxy) MgetEquipmentInfo(offest, limit int) ([]model.EquipmentInfo, error) {
+	dbProxy.checkDb()
+	var equipmentInfos []model.EquipmentInfo
+
+	if limit == 0 {
+		limit = 100
+	}
+	err := dbProxy.DbConn.Model(&model.EquipmentInfo{}).Offset(offest).Limit(limit).Find(&equipmentInfos).Error
+	if err != nil {
+		log.Errorf("[MgetEquipmentInfo]the db error ,the error is %s", err.Error())
+	}
+	return equipmentInfos, err
+}
+
+func (dbProxy *dbProxy) CreateSession(session *model.Session) error {
+	dbProxy.checkDb()
+	err := dbProxy.DbConn.Debug().Model(&model.Session{}).Create(session).Error
+	if err != nil {
+		log.Errorf("[CreateSession]the db error ,the error is %s", err.Error())
+	}
+	return err
+}
+
+func (dbProxy *dbProxy) UpdateSession(session *model.Session) error {
+	dbProxy.checkDb()
+	if session.SessionId != 0 {
+		err := dbProxy.DbConn.Model(&model.Session{}).Where("session_id = ?", session.SessionId).
+			Update("expire_time = ?", session.ExpireTime).Error
+		if err != nil {
+			log.Errorf("[UpdateSession]the db error ,the error is %s", err.Error())
+		}
+		return err
+	}
+
+	if session.UserId != 0 {
+		err := dbProxy.DbConn.Model(&model.Session{}).Where("user_id = ?", session.UserId).
+			Update("expire_time = ?", session.ExpireTime).Error
+		if err != nil {
+			log.Errorf("[UpdateSession]the db error ,the error is %s", err.Error())
+		}
+		return err
+	}
+
+	return errors.New("[UpdateSession]the userId is 0 and data is null")
+
+}
+
+func (dbProxy *dbProxy) DeleteSession(sessionId, userId int64) error {
+	dbProxy.checkDb()
+	if sessionId != 0 {
+		err := dbProxy.DbConn.Model(&model.Session{}).Where("session_id = ?", sessionId).Delete(&model.Session{}).Error
+		if err != nil {
+			log.Errorf("[DeleteSession]the db error ,the error is %s", err.Error())
+		}
+		return err
+	}
+
+	if userId != 0 {
+		err := dbProxy.DbConn.Model(&model.Session{}).Where("user_id = ?", userId).Delete(&model.Session{}).Error
+		if err != nil {
+			log.Errorf("[DeleteSession]the db error ,the error is %s", err.Error())
+		}
+		return err
+	}
+
+	return errors.New("[DeleteSession]the userId is 0 and data is null")
+
+}
+
+func (dbProxy *dbProxy) GetSession(sessionId int64) (*model.Session, error) {
+	dbProxy.checkDb()
+	var session model.Session
+	err := dbProxy.DbConn.Model(&model.Session{}).Where("session_id = ?", sessionId).First(&session).Error
+	if err != nil {
+		log.Errorf("[GetSession]the db error ,the error is %s", err.Error())
+	}
+	return &session, err
+}
+
+func (dbProxy *dbProxy) MGetSession(userId int64) ([]model.Session, error) {
+	dbProxy.checkDb()
+	var sessions []model.Session
+	err := dbProxy.DbConn.Model(&model.Session{}).Where("user_id = ?", userId).Find(&sessions).Error
+	if err != nil {
+		log.Errorf("[MGetSession]the db error ,the error is %s", err.Error())
+	}
+	return sessions, err
+}
+
+func (dbProxy *dbProxy) CreateUserInfo(userInfo *model.UserInfo) error {
+	dbProxy.checkDb()
+	err := dbProxy.DbConn.Model(&model.UserInfo{}).Create(userInfo).Error
+	if err != nil {
+		log.Errorf("[MGetSession]the db error ,the error is %s", err.Error())
+	}
+
+	return err
+}
+
+func (dbProxy *dbProxy) GetUserInfo(passportName, password string) (*model.UserInfo, error) {
+	dbProxy.checkDb()
+	var userInfo model.UserInfo
+	err := dbProxy.DbConn.Model(&model.UserInfo{}).Where("passport_name = ? and password = ?", passportName, password).First(&userInfo).Error
+	if err != nil {
+		log.Errorf("[MGetSession]the db error ,the error is %s", err.Error())
+	}
+	return &userInfo, err
 }

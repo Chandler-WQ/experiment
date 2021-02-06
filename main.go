@@ -7,6 +7,8 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/Chandler-WQ/experiment/db"
+	"github.com/Chandler-WQ/experiment/service"
+	"github.com/Chandler-WQ/experiment/util"
 )
 
 //// 通过字典模拟 DB
@@ -58,11 +60,13 @@ func Init(r *gin.Engine) {
 	log.SetOutput(os.Stdout)
 	log.SetLevel(log.DebugLevel)
 	log.SetFormatter(&log.JSONFormatter{})
+	db.MustInitDb()
+	service.InitTimeRun()
+	util.Init()
 	setupRouter(r)
 }
 
 func main() {
-	db.MustInitDb()
 	r := gin.Default()
 	Init(r)
 

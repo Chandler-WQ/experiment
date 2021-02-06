@@ -5,39 +5,24 @@ import (
 )
 
 var (
-	Success                = New(0, "success")
-	ParamError             = New(1, "param error")
-	DBError                = New(2, "db error，please try again later")
-	ServerError            = New(3, "server error")
+	Success    = New(0, "success")
+	ParaErr    = New(1, "参数错误")
+	DBErr      = New(2, "数据库错误，请重试或并联系管理员")
+	SerErr     = New(3, "服务错误，请联系管理员")
+	SessionErr = New(4, "请先登录")
 )
 
 type Response struct {
-	StatusCode int32       `json:"status_code"`
-	Message    string      `json:"message"`
-	Data       interface{} `json:"data"`
+	Code    int32       `json:"code"`
+	Message string      `json:"msg"`
+	Data    interface{} `json:"data"`
 }
-
-const (
-	nilString = "nil"
-)
 
 func New(code int32, message string) *Response {
 	err := &Response{
-		StatusCode: code,
-		Message:    message,
-		Data:       fmt.Sprintf("%d:%s", code, message),
+		Code:    code,
+		Message: message,
+		Data:    fmt.Sprintf("%d:%s", code, message),
 	}
 	return err
-}
-func (e *Response) ErrNo() int32 {
-	if e == nil {
-		return 0
-	}
-	return e.StatusCode
-}
-func (e *Response) ErrTips() string {
-	if e == nil {
-		return nilString
-	}
-	return e.Message
 }
