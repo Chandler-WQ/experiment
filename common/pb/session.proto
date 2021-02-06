@@ -1,0 +1,12 @@
+syntax = "proto3";
+package pb;
+
+message Session{
+  int64 sessionId = 1;
+  int64 userId = 2;
+  string name = 3;
+  string passportName = 4;
+  string college = 5;
+  int64 userType = 6;
+  int64 userNumber = 7;
+}
