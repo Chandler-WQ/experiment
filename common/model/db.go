@@ -138,7 +138,8 @@ type EquipmentInfo struct {
 	Type           string
 	Factory        string
 	ExperimentName string
-	EquipmentId    int64
+	ExperimentId   int64
+	Sum            int64
 }
 
 func (EquipmentInfo) TableName() string {

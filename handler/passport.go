@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -67,6 +68,7 @@ func Login(ctx *gin.Context) {
 	}
 	session := userInfo.ToSession()
 	session.SessionId = util.GetId()
+	session.ExpireTime = time.Now().Unix() + common.SessionAge
 	token, err := service.CreateSession(&session)
 	if err != nil {
 		ctx.JSON(http.StatusOK, util.FailResponse(ctx, common.SerErr.Code, err.Error(), nil))

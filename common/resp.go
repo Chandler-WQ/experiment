@@ -6,7 +6,7 @@ import (
 
 var (
 	Success       = New(0, "success")
-	ParaErr       = New(1, "参数格式错误或缺少对应参数")
+	ParaErr       = New(1, "参数错误或缺少对应参数")
 	DBErr         = New(2, "数据库错误，请重试或并联系管理员")
 	SerErr        = New(3, "服务错误，请联系管理员")
 	SessionErr    = New(4, "请先登录")

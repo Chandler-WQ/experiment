@@ -28,3 +28,8 @@ type CourseInfoRsp struct {
 	ExperimentCourse *ExperimentCourse
 	ExperimentInfo   *ExperimentInfo
 }
+
+type ReserveInfoRsp struct {
+	ExperimentReserveInfo *ExperimentReserveInfo
+	ExperimentInfo        *ExperimentInfo
+}

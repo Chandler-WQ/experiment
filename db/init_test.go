@@ -106,7 +106,7 @@ func TestDbProxy_CreateCourse(t *testing.T) {
 }
 
 func TestDbProxy_MGetCourses(t *testing.T) {
-	ExperimentCourse, err := Db.MGetCourses(1, 1)
+	ExperimentCourse, err := Db.MGetCourses(1, -1, -1)
 	assert.Nil(t, err)
 	assert.NotEqual(t, 0, len(ExperimentCourse))
 	assert.NotNil(t, ExperimentCourse)
@@ -186,9 +186,9 @@ func TestDbProxy_DeleteExperimentReserveInfo(t *testing.T) {
 
 func TestDbProxy_MGetExperimentReserveInfo(t *testing.T) {
 	timeNow := time.Now().Unix()
-	experimentReserveInfos, userInfo, err := Db.MGetExperimentReserveInfo(1, timeNow-30*61, timeNow+30*61*20)
+	experimentReserveInfos, err := Db.MGetExperimentReserveInfo(1, timeNow-30*61, timeNow+30*61*20)
 	assert.Nil(t, err)
-	log.Infof("userInfo is %v", userInfo)
+	log.Infof("userInfo is %v", experimentReserveInfos)
 	log.Infof("experimentReserveInfos is %v", experimentReserveInfos[0])
 }
 

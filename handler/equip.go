@@ -5,7 +5,6 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	log "github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 
 	"github.com/Chandler-WQ/experiment/common"
@@ -15,8 +14,10 @@ import (
 	"github.com/Chandler-WQ/experiment/util"
 )
 
-func CreateExperiment(ctx *gin.Context) {
-	req := model.Experiment{}
+func CreateEquip(ctx *gin.Context) {
+	req := model.Equipment{
+		ExperimentId: -1,
+	}
 	err := ctx.BindJSON(&req)
 	if err != nil {
 		ctx.JSON(http.StatusOK, util.FailResponse(ctx, common.ParaErr.Code, common.ParaErr.Message, nil))
@@ -32,29 +33,24 @@ func CreateExperiment(ctx *gin.Context) {
 		return
 	}
 
-	err = db.Db.CreateExperimentInfo(&model.ExperimentInfo{
-		Name:      req.Name,
-		Region:    req.Region,
-		TotalSeat: req.TotalSeat,
+	err = db.Db.CreateEquipmentInfo(&model.EquipmentInfo{
+		Name:           req.Name,
+		ExperimentId:   req.ExperimentId,
+		ExperimentName: req.ExperimentName,
+		Factory:        req.Factory,
+		Type:           req.Type,
+		Sum:            req.Sum,
 	})
 	if err != nil {
 		ctx.JSON(http.StatusOK, util.FailResponse(ctx, common.DBErr.Code, common.DBErr.Message, err.Error()))
 		return
 	}
-	go func() {
-		defer func() {
-			if s := recover(); s != nil {
-				log.Errorf("[SegmentCreatefunc]panic: %s", s)
-			}
-		}()
-		_ = service.SegmentCreate()
-	}()
 	ctx.JSON(http.StatusOK, util.SuccessResponse(ctx, common.SUCCESS, nil))
 
 }
 
-func UpdateExperiment(ctx *gin.Context) {
-	req := model.UpdateExperiment{}
+func UpdateEquip(ctx *gin.Context) {
+	req := model.UpdateEquipment{}
 	err := ctx.BindJSON(&req)
 	if err != nil {
 		ctx.JSON(http.StatusOK, util.FailResponse(ctx, common.ParaErr.Code, common.ParaErr.Message, nil))
@@ -70,8 +66,8 @@ func UpdateExperiment(ctx *gin.Context) {
 		return
 	}
 
-	err = db.Db.UpdateExperimentInfo(req.ExperimentId, &model.ExperimentInfo{
-		TotalSeat: req.TotalSeat,
+	err = db.Db.UpdateEquipmentInfo(req.EquipmentId, &model.EquipmentInfo{
+		Sum: req.Sum,
 	})
 	if err != nil {
 		ctx.JSON(http.StatusOK, util.FailResponse(ctx, common.DBErr.Code, common.DBErr.Message, err.Error()))
@@ -80,7 +76,7 @@ func UpdateExperiment(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, util.SuccessResponse(ctx, common.SUCCESS, nil))
 }
 
-func MGetExperiments(ctx *gin.Context) {
+func MGetEquips(ctx *gin.Context) {
 	offsetStr := ctx.Params.ByName("offset")
 	if offsetStr == "" {
 		offsetStr = "0"
@@ -105,19 +101,19 @@ func MGetExperiments(ctx *gin.Context) {
 		return
 	}
 
-	ExperimentInfos, err := db.Db.MgetExperimentInfo(int(offset), int(limit))
+	equipmentInfos, err := db.Db.MgetEquipmentInfo(int(offset), int(limit))
+	if err == gorm.ErrRecordNotFound {
+		ctx.JSON(http.StatusOK, util.FailResponse(ctx, common.ParaErr.Code, common.ParaErr.Message, "查询数据为空"))
+		return
+	}
 	if err != nil {
 		ctx.JSON(http.StatusOK, util.FailResponse(ctx, common.DBErr.Code, common.DBErr.Message, err.Error()))
 		return
 	}
-	if len(ExperimentInfos) == 0 {
-		ctx.JSON(http.StatusOK, util.FailResponse(ctx, common.ParaErr.Code, common.ParaErr.Message, "查询数据为空"))
-		return
-	}
-	ctx.JSON(http.StatusOK, util.SuccessResponse(ctx, common.SUCCESS, ExperimentInfos))
+	ctx.JSON(http.StatusOK, util.SuccessResponse(ctx, common.SUCCESS, equipmentInfos))
 }
 
-func GetExperiment(ctx *gin.Context) {
+func GetEquip(ctx *gin.Context) {
 	idStr := ctx.Params.ByName("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
@@ -134,7 +130,7 @@ func GetExperiment(ctx *gin.Context) {
 		return
 	}
 
-	ExperimentInfos, err := db.Db.GetExperimentInfo(id)
+	equipmentInfos, err := db.Db.GetEquipmentInfo(id)
 	if err == gorm.ErrRecordNotFound {
 		ctx.JSON(http.StatusOK, util.FailResponse(ctx, common.ParaErr.Code, common.ParaErr.Message, "查询数据为空"))
 		return
@@ -143,11 +139,11 @@ func GetExperiment(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, util.FailResponse(ctx, common.DBErr.Code, common.DBErr.Message, err.Error()))
 		return
 	}
-	ctx.JSON(http.StatusOK, util.SuccessResponse(ctx, common.SUCCESS, ExperimentInfos))
+	ctx.JSON(http.StatusOK, util.SuccessResponse(ctx, common.SUCCESS, equipmentInfos))
 }
 
-func DeleteExperiments(ctx *gin.Context) {
-	req := model.DeleteExperiment{}
+func DeleteEquips(ctx *gin.Context) {
+	req := model.DeleteEquipment{}
 	err := ctx.BindJSON(&req)
 	if err != nil {
 		ctx.JSON(http.StatusOK, util.FailResponse(ctx, common.ParaErr.Code, common.ParaErr.Message, nil))
@@ -163,7 +159,7 @@ func DeleteExperiments(ctx *gin.Context) {
 		return
 	}
 
-	err = db.Db.DeleteExperimentInfo(req.ExperimentId)
+	err = db.Db.DeleteEquipmentInfo(req.EquipmentId)
 	if err != nil {
 		ctx.JSON(http.StatusOK, util.FailResponse(ctx, common.DBErr.Code, common.DBErr.Message, err.Error()))
 		return
