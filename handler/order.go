@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -18,7 +19,7 @@ import (
 func CreateOrder(ctx *gin.Context) {
 	req := model.ExperimentReserve{}
 	err := ctx.BindJSON(&req)
-	if err != nil {
+	if err != nil || req.StartTime > time.Now().Unix()+common.Week {
 		ctx.JSON(http.StatusOK, util.FailResponse(ctx, common.ParaErr.Code, common.ParaErr.Message, nil))
 		return
 	}
