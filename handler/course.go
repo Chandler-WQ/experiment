@@ -37,7 +37,7 @@ func CreatCourse(ctx *gin.Context) {
 		return
 	}
 
-	if req.StartTime > req.EndTime || req.StartTime < time.Now().Unix() || !util.IsHalfTime(req.StartTime) || !util.IsHalfTime(req.EndTime) || req.StartTime > time.Now().Unix()+86400*2 {
+	if req.StartTime > req.EndTime || req.StartTime < time.Now().Unix() || !util.IsHalfTime(req.StartTime) || !util.IsHalfTime(req.EndTime) || req.StartTime > time.Now().Unix()+common.Week {
 		ctx.JSON(http.StatusOK, util.FailResponse(ctx, common.ParaErr.Code, common.ParaErr.Message, "时间错误"))
 		return
 	}

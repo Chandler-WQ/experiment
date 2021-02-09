@@ -98,7 +98,7 @@ func Logout(ctx *gin.Context) {
 func GetSessionInfo(ctx *gin.Context) {
 	session, err := service.GetSessionFromCtx(ctx)
 	if err != nil {
-		ctx.JSON(http.StatusOK, util.FailResponse(ctx, common.SerErr.Code, common.SerErr.Message, err.Error()))
+		ctx.JSON(http.StatusOK, util.FailResponse(ctx, common.SerErr.Code, common.SerErr.Message, nil))
 		return
 	}
 

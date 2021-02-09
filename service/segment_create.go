@@ -5,6 +5,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
+	"github.com/Chandler-WQ/experiment/common"
 	"github.com/Chandler-WQ/experiment/common/model"
 	"github.com/Chandler-WQ/experiment/db"
 )
@@ -39,7 +40,7 @@ func SegmentCreate() error {
 	}
 
 	for i := 0; i < len(experimentInfos); i++ {
-		for j := 0; j < 96; j++ {
+		for j := 0; j < common.Week*2/1800; j++ {
 			experimentSegmentInfo := model.ExperimentSegmentInfo{
 				ExperimentId:  int64(experimentInfos[i].ID),
 				StartTime:     timeStart + int64(j*30*60),
